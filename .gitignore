@@ -1,0 +1,37 @@
+# --- Secrets / per-deployment config ---
+# config.yaml holds the Pushover token/user, the eero network name and every
+# watched device's name + MAC. Commit config.example.yaml instead.
+config.yaml
+config.yaml.bak*
+# eero API session cookie (grants access to the eero account)
+session.cookie
+*.cookie
+.session.cookie.*
+.env
+.secret_key
+
+# --- Runtime state & logs (device names, MACs, IPs, home/away history) ---
+watch.state.json
+watch.state.json.tmp
+*.log
+*.log.*
+logs/
+out.txt
+diag_probe.out
+*.out
+
+# --- Local backups ---
+*.bak
+*.bak-*
+
+# --- Python ---
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# --- Tooling ---
+.claude/
+dist/
+data/
+*.db

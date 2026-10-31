@@ -1,0 +1,89 @@
+# ===========================================================================
+# EeroNotifier configuration — EXAMPLE. Copy to config.yaml and fill in.
+#
+#   cp config.example.yaml config.yaml
+#
+# config.yaml is the ONLY file that differs between boxes (and is gitignored —
+# it holds your Pushover credentials and device MACs). watch.py / utils.py /
+# config.py are byte-identical everywhere; per-deployment differences (which
+# eero network, which Pushover token) and all tuning live here.
+# ===========================================================================
+
+# eero network this instance watches (the SSID / network name). null = watch
+# every network on the account (rarely what you want — one instance per network).
+network: "YOUR_EERO_NETWORK_NAME"
+
+pushover:
+  token: "YOUR_PUSHOVER_APP_TOKEN"
+  user:  "YOUR_PUSHOVER_USER_KEY"
+  sound: "pushover"
+
+# --- Presence model: "LAN establishes, eero sustains" (uniform, all devices) ---
+# A device goes HOME only by answering a LAN probe (arping/TCP/ping/ping6).
+# eero's `connected` flag can NEVER make an away device arrive; it only sustains
+# an already-home device through Wi-Fi power-save sleep gaps, and only while a
+# LAN hit is still recent. A device that never answers LAN cannot be sustained.
+presence:
+  consec_to_arrive:     2    # LAN probe hits (within arrive_window) needed to declare ARRIVED
+  arrive_window:        10   # count those LAN hits over this many recent runs
+  leave_minutes:        3    # no LAN hit AND no valid eero-sustain for this long -> LEFT
+  eero_sustain_max_min: 5    # eero connected sustains HOME at most this long since the last LAN hit
+                             # (kept BELOW eero's ~6min connected-flag lag so leaves trigger on
+                             #  LAN silence, not on waiting for eero). Per-device override:
+                             #  see eero_sustain_max_min under `watched` below.
+
+probing:
+  enable_local_probes: true   # arping/TCP/ping/ping6 from this box (LAN-attached)
+  probes_per_run:      2      # eero cloud fetches per run
+  probe_delay_sec:     1.0
+
+notifications:
+  cooldown_min: 15           # per-device, per-kind notification cooldown
+
+state:
+  history_window:  60        # per-device rolling present/absent history kept
+  max_events_kept: 200       # bounded transition log
+
+# Target for the temporary diag_probe.sh diagnostic (not used by watch.py).
+diag_probe:
+  ip:         "192.168.1.50"
+  mac_prefix: "aa:bb:cc"
+
+paths:
+  state:  "watch.state.json"
+  cookie: "session.cookie"
+
+# Low-level local-probe packet timing (rarely changed; here so nothing is a
+# magic number buried in code).
+probe_timing:
+  ping_timeout_ms:       1000
+  ping_count:            3
+  arping_count:          10
+  arping_timeout_sec:    10
+  tcp_probe_port:        62078   # iOS lockdown service, present on every iPhone
+  tcp_probe_timeout_sec: 2
+  tcp_probe_attempts:    4
+  tcp_probe_gap_sec:     0.4
+  arp_bin:               "/usr/sbin/arp"
+
+# ---------------------------------------------------------------------------
+# Watched devices. Keyed by a human-friendly label. Each entry declares how to
+# recognize the physical device in eero's list:
+#   names: eero name strings (display_name / nickname / hostname) it shows up
+#          as — matched case/apostrophe-insensitively. PRIMARY match, robust to
+#          iOS private-MAC rotation. With explicit names, the label is NOT
+#          auto-added (it could collide with a different device's eero nickname).
+#   macs:  MAC addresses it uses (secondary match; iOS rotates these).
+#   eero_sustain_max_min: (optional) per-device override of
+#          presence.eero_sustain_max_min — for a phone whose Wi-Fi deep-sleeps
+#          through every LAN probe for long stretches while eero keeps it
+#          connected=Y. Real departures still flip eero to connected=N within
+#          ~0-6 min, so leaves are barely delayed; this only caps how long a
+#          lingering eero connected=Y can hold the device HOME.
+# A record matches if ANY name OR ANY mac matches.
+# ---------------------------------------------------------------------------
+watched:
+  "Alice's iPhone":   { names: ["Alice's iPhone"],   macs: ["aa:bb:cc:dd:ee:01"] }
+  "Bob's iPhone":     { names: ["Bob's iPhone"],     macs: [] }
+  # A phone whose Wi-Fi sleeps hard and keeps false-"leaving": let eero hold it longer.
+  "Carol's iPhone":   { names: ["Carol's iPhone"],   macs: ["aa:bb:cc:dd:ee:03"], eero_sustain_max_min: 20 }
